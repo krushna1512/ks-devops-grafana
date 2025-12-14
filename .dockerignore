@@ -1,0 +1,18 @@
+# .dockerignore - ignores following files
+
+# Config files
+.aws
+.gitlab
+.github
+build.sh
+
+# Docker
+docker-compose.yaml
+Dockerfile
+.dockerignore
+
+# git
+.git
+.gitignore
+
+README.md
