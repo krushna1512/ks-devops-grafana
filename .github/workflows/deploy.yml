@@ -1,0 +1,71 @@
+name: Build & Deploy
+
+on: workflow_dispatch
+
+jobs:
+
+  build:
+    name: Build
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          source ./.aws/config.sh
+          docker build -t $ECR_REGISTRY/$SERVICE_NAME:$IMAGE_TAG --target prod .
+          docker push $ECR_REGISTRY/$SERVICE_NAME:$IMAGE_TAG
+          echo "::set-output name=image::$ECR_REGISTRY/$SERVICE_NAME:$IMAGE_TAG"
+          docker image rm $ECR_REGISTRY/$SERVICE_NAME:$IMAGE_TAG
+
+  deploy:
+    name: Deploy
+    runs-on: self-hosted
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setting variables from config file
+        run: |
+          source ./.aws/config.sh
+          echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
+          echo "STACK_NAME=$SERVICE_NAME-stack" >> $GITHUB_ENV
+          echo "MEMORY=$MEMORY" >> $GITHUB_ENV
+          echo "CPU=$CPU" >> $GITHUB_ENV
+          echo "CONTAINER_PORT=$CONTAINER_PORT" >> $GITHUB_ENV
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Deploy to Amazon ECS cluster
+        uses: aws-actions/aws-cloudformation-github-deploy@v1.2.0
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        with:
+          name: ${{ env.STACK_NAME }}
+          template: ./.aws/cloudformation.yml
+          capabilities: CAPABILITY_NAMED_IAM
+          no-fail-on-empty-changeset: "1"
+          parameter-overrides: >-
+            ProjectName=ops,
+            ServiceName=${{ env.SERVICE_NAME }},
+            ContainerPort=${{ env.CONTAINER_PORT }},
+            ContainerMemory=${{ env.MEMORY }},
+            ContainerCpu=${{ env.CPU }},
+            RevisionNumber=${{ env.IMAGE_TAG }}
