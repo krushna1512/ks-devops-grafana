@@ -1,0 +1,36 @@
+version: "2.4"
+
+volumes:
+  grafana_data: {}
+
+services:    
+  grafana:
+    container_name: grafana
+    read_only: true
+    build:
+      dockerfile: Dockerfile
+      context: .
+      target: prod
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - grafana_data:/tmp
+    environment:
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SERVER_HTTP_PORT=9001
+      #- GF_INSTALL_PLUGINS=fifemon-graphql-datasource,grafana-googlesheets-datasource,grafana-sentry-datasource
+      - GF_DATE_FORMATS_FULL_DATE=MMM Do YYYY, hh:mm a
+      - GF_DATE_FORMATS_INTERVAL_HOUR=MMM Do, HH:mm a
+      - GF_DATE_FORMATS_INTERVAL_DAY=MMM Do, ddd
+      - GF_ANALYTICS_REPORTING_ENABLED=true
+      - GF_ANALYTICS_GOOGLE_ANALYTICS_UA_ID=G-25009325
+      # connect to local mysql
+      - GF_DATABASE_TYPE=mysql
+      - GF_DATABASE_HOST=localhost:3306
+      - GF_DATABASE_NAME=grafana
+      - GF_DATABASE_USER=grafana
+      - GF_DATABASE_PASSWORD=Grafana_pass@123
+    ports:
+      - 9001:9001
